@@ -1,4 +1,5 @@
 name: build-N1
+
 on:
   workflow_dispatch:
     inputs:
@@ -17,11 +18,6 @@ on:
         default: "24.10.5"
         type: choice
         options:
-          - 24.10.0
-          - 24.10.1
-          - 24.10.2
-          - 24.10.3
-          - 24.10.4
           - 24.10.5
 
       openwrt_kernel:
@@ -181,18 +177,19 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
+
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v3
 
+          # ✅ 自动选择内核（已修复）
       - name: Set kernel automatically
-  id: set_kernel
-  run: |
-    if [ "${{ github.event.inputs.device }}" = "cm311a" ]; then
-      echo "KERNEL=6.6.93" >> $GITHUB_ENV
-    else
-      echo "KERNEL=6.1.127" >> $GITHUB_ENV
-    fi
+        run: |
+          if [ "${{ github.event.inputs.device }}" = "cm311a" ]; then
+            echo "KERNEL=6.6.93" >> $GITHUB_ENV
+          else
+            echo "KERNEL=6.1.127" >> $GITHUB_ENV
+          fi
       - name: Set executable permissions
         run: chmod +x ${{ github.workspace }}/n1/build.sh
 
@@ -252,26 +249,44 @@ jobs:
           curl -L -o bin/targets/armsr/armv8/openwrt-armvirt-64-default-rootfs.tar.gz \
             https://github.com/wukongdaily/AutoBuildImmortalWrt/releases/download/rootfs/immortalwrt-24.10.2-armsr-armv8-generic-rootfs.tar.gz
 
+          # （这里假设你前面已有下载或编译rootfs步骤）
+
       - name: 查找rootfs.tar.gz所在路径
         id: find_rootfs
         run: |
           ROOTFS_FILE=$(find bin/targets/armsr/armv8/ -type f -name "*rootfs.tar.gz" | head -n1)
-          echo "✅ Found: $ROOTFS_FILE"
+          echo "Found: $ROOTFS_FILE"
           if [ ! -f "$ROOTFS_FILE" ]; then
-            echo "❌ 找不到 rootfs.tar.gz 文件"
+            echo "找不到 rootfs.tar.gz"
             exit 1
           fi
           echo "file=$ROOTFS_FILE" >> $GITHUB_OUTPUT
 
-      - name: Package armsr-armv8 as ImmortalWrt for N1
+          # ✅ 修复 if 语法
+      - name: Package armsr-armv8
         uses: wukongdaily/flippy-openwrt-actions@master
-        if: ${{ steps.down.outputs.status == 'success' && !cancelled() }}
+        if: ${{ !cancelled() }}
         env:
           OPENWRT_ARMVIRT: ${{ steps.find_rootfs.outputs.file }}
           PACKAGE_SOC: ${{ github.event.inputs.device == 'cm311a' && 's905l3a' || 's905d' }}
           KERNEL_VERSION_NAME: ${{ env.KERNEL }}
           KERNEL_AUTO_LATEST: false
-          WHOAMI: ${{ inputs.builder_name }}
+
+          # ✅ 重命名（自动设备）
+      - name: Rename firmware
+        run: |
+          FILE=$(ls *.img.gz | head -n1)
+          KERNEL_VERSION=$(echo "$FILE" | grep -oP 'k\d+\.\d+\.\d+')
+          DEVICE="${{ github.event.inputs.device }}"
+          LUCI_VERSION="${{ github.event.inputs.luci_version }}"
+
+          mv "$FILE" "immortalwrt-$LUCI_VERSION-$DEVICE-btrfs-$KERNEL_VERSION.img.gz"
+
+      - name: Upload firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware
+          path: "*.img.gz"
 
       - name: Rename .img.gz file
         id: rename
