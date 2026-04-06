@@ -1,0 +1,74 @@
+name: build-cm311a
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Clone source
+        run: |
+          git clone https://github.com/immortalwrt/immortalwrt.git
+          cd immortalwrt
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+      # ✅ 加插件（已帮你写好）
+      - name: Add AdGuardHome
+        run: |
+          echo "CONFIG_PACKAGE_luci-app-adguardhome=y" >> immortalwrt/.config
+
+      - name: Build rootfs
+        run: |
+          cd immortalwrt
+          make defconfig
+          make -j$(nproc) || make -j1 V=s
+
+      - name: Find rootfs
+        id: find_rootfs
+        run: |
+          ROOTFS=$(find immortalwrt/bin/targets/armsr/armv8/ -name "*rootfs.tar.gz" | head -n1)
+
+          if [ -z "$ROOTFS" ]; then
+            echo "❌ 没找到 rootfs"
+            exit 1
+          fi
+
+          echo "file=$ROOTFS" >> $GITHUB_OUTPUT
+
+      - name: Package for CM311A
+        uses: wukongdaily/flippy-openwrt-actions@master
+        env:
+          OPENWRT_ARMVIRT: ${{ steps.find_rootfs.outputs.file }}
+          PACKAGE_SOC: s905l3a
+          KERNEL_VERSION_NAME: 6.6.93
+          KERNEL_AUTO_LATEST: false
+
+      - name: Find firmware
+        id: find_img
+        run: |
+          IMG=$(find . -name "*.img.gz" | head -n1)
+
+          if [ -z "$IMG" ]; then
+            echo "❌ 没找到 img.gz"
+            exit 1
+          fi
+
+          echo "img=$IMG" >> $GITHUB_OUTPUT
+
+      - name: Rename firmware
+        run: |
+          FILE="${{ steps.find_img.outputs.img }}"
+          KERNEL=$(echo "$FILE" | grep -oP 'k\d+\.\d+\.\d+')
+          mv "$FILE" "immortalwrt-cm311a-$KERNEL.img.gz"
+
+      - name: Upload firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: cm311a-firmware
+          path: "*.img.gz"
