@@ -1,4 +1,5 @@
 name: build-cm311a
+
 on:
   workflow_dispatch:
     inputs:
@@ -14,42 +15,68 @@ on:
           - 24.10.3
           - 24.10.4
           - 24.10.5
-      skip_imagebuilder:
-        description: "是否跳过 ImageBuilder，直接用预构建 rootfs"
+      include_docker:
+        description: "是否编译 Docker 插件"
         required: true
+        default: 'no'
+        type: choice
+        options:
+          - 'yes'
+          - 'no'
+      enable_store:
+        description: "集成 store 商店"
+        required: false
         type: boolean
         default: true
-      rootfs_version:
-        description: "预构建 rootfs 版本"
-        required: true
-        default: "24.10.2"
+      skip_imagebuilder:
+        description: "直接使用预构建 rootfs"
+        required: false
+        default: true
+        type: boolean
+      replace_banner:
+        description: '替换为 ImmortalWrt banner'
+        required: false
+        default: false
+        type: boolean
       builder_name:
-        description: "打包作者名称"
+        description: "设置打包作者名称"
         required: true
-        default: "yjga2025"
+        default: 'wukongdaily'
 
 jobs:
   build:
     runs-on: ubuntu-22.04
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Debug workspace
+      - name: Set executable permissions
+        run: chmod +x ${{ github.workspace }}/n1/build.sh
+
+      - name: Debug workspace contents
         run: ls -R
 
-      - name: Download prebuilt rootfs
+      - name: Enable Store integration
+        run: |
+          if [ "${{ github.event.inputs.enable_store }}" == "true" ]; then
+            echo 'CUSTOM_PACKAGES="$CUSTOM_PACKAGES luci-app-store"' >> shell/custom-packages.sh
+          fi
+
+      - name: Download prebuilt rootfs for CM311-1A
         if: ${{ github.event.inputs.skip_imagebuilder == 'true' }}
         run: |
+          echo "📦 正在下载预构建 rootfs"
+          LUCI_VERSION="${{ github.event.inputs.luci_version }}"
           mkdir -p bin/targets/armsr/armv8
           curl -L -o bin/targets/armsr/armv8/openwrt-armvirt-64-default-rootfs.tar.gz \
-          https://github.com/wukongdaily/AutoBuildImmortalWrt/releases/download/rootfs/immortalwrt-${{ github.event.inputs.rootfs_version }}-armsr-armv8-generic-rootfs.tar.gz
+            https://github.com/wukongdaily/AutoBuildImmortalWrt/releases/download/rootfs/immortalwrt-${LUCI_VERSION}-armsr-armv8-generic-rootfs.tar.gz
+          echo "PREBUILT_LUCI_VERSION=$LUCI_VERSION" >> $GITHUB_ENV
 
       - name: Find rootfs
         id: find_rootfs
         run: |
           ROOTFS_FILE=$(find bin/targets/armsr/armv8/ -type f -name "*rootfs.tar.gz" | head -n1)
-          echo "✅ Found: $ROOTFS_FILE"
           if [ ! -f "$ROOTFS_FILE" ]; then
             echo "❌ rootfs 未找到"
             exit 1
@@ -62,24 +89,30 @@ jobs:
           OPENWRT_ARMVIRT: ${{ steps.find_rootfs.outputs.file }}
           PACKAGE_SOC: s905l3a
           KERNEL_AUTO_LATEST: false
-          WHOAMI: ${{ github.event.inputs.builder_name }}
+          WHOAMI: ${{ inputs.builder_name }}
 
-      - name: Rename firmware
-        id: rename
+      - name: Find firmware
+        id: find_img
         run: |
-          FILE=$(ls ${{ env.PACKAGED_OUTPUTPATH }}/*.img.gz | head -n1)
-          echo "Image file is: $FILE"
-          FILENAME=$(basename "$FILE")
-          echo "FILENAME=$FILENAME" >> $GITHUB_ENV
+          IMG=$(find . -name "*.img.gz" | head -n1)
+          if [ -z "$IMG" ]; then
+            echo "❌ 没找到 img.gz"
+            exit 1
+          fi
+          echo "img=$IMG" >> $GITHUB_OUTPUT
+
+      - name: Rename firmware (test version)
+        run: |
+          FILE="${{ steps.find_img.outputs.img }}"
+          KERNEL_VERSION=$(echo "$FILE" | grep -oP 'k\d+\.\d+\.\d+')
           LUCI_VERSION="${{ github.event.inputs.luci_version }}"
-          mv "$FILE" "${{ env.PACKAGED_OUTPUTPATH }}/immortalwrt-$LUCI_VERSION-cm311a-btrfs.img.gz"
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          NEW_NAME="immortalwrt-${LUCI_VERSION}-cm311a-btrfs-${KERNEL_VERSION}-test-${TIMESTAMP}.img.gz"
+          mv "$FILE" "${{ env.PACKAGED_OUTPUTPATH }}/$NEW_NAME"
+          echo "✅ 新固件文件名: $NEW_NAME"
 
       - name: Upload firmware to GitHub Releases
-        uses: softprops/action-gh-release@v2.2.1
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: cm311a
-          name: ImmortalWrt CM311A
-          files: |
-            ${{ env.PACKAGED_OUTPUTPATH }}/*.img.gz
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: cm311a-firmware
+          path: "*.img.gz"
