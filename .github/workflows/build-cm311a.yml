@@ -63,24 +63,24 @@ jobs:
             echo 'CUSTOM_PACKAGES="$CUSTOM_PACKAGES luci-app-store"' >> shell/custom-packages.sh
           fi
 
-      - name: Download prebuilt rootfs (FIX)
-        if: ${{ github.event.inputs.skip_imagebuilder == 'true' }}
-        run: |
-          LUCI_VERSION="${{ github.event.inputs.luci_version }}"
-          echo "📦 下载 rootfs: $LUCI_VERSION"
+       - name: Download prebuilt rootfs (FIX)
+  run: |
+    LUCI_VERSION="${{ github.event.inputs.luci_version }}"
+    echo "📦 下载 rootfs: $LUCI_VERSION"
 
-          mkdir -p openwrt_packit
+    mkdir -p openwrt_packit
 
-          curl -fL -o openwrt-armsr-armv8-generic-rootfs.tar.gz \
-          https://github.com/wukongdaily/AutoBuildImmortalWrt/releases/download/rootfs/immortalwrt-${LUCI_VERSION}-armsr-armv8-generic-rootfs.tar.gz
+    curl -fL -o openwrt-armsr-armv8-generic-rootfs.tar.gz \
+    https://github.com/wukongdaily/AutoBuildImmortalWrt/releases/download/rootfs/immortalwrt-${LUCI_VERSION}-armsr-armv8-generic-rootfs.tar.gz
 
-          if [ ! -f openwrt-armsr-armv8-generic-rootfs.tar.gz ]; then
-            echo "❌ rootfs 下载失败"
-            exit 1
-          fi
+    if [ ! -f openwrt-armsr-armv8-generic-rootfs.tar.gz ]; then
+      echo "❌ rootfs 下载失败"
+      exit 1
+    fi
 
-          mv openwrt-armsr-armv8-generic-rootfs.tar.gz openwrt_packit/
-          echo "✅ rootfs 已准备完成"
+    mv openwrt-armsr-armv8-generic-rootfs.tar.gz openwrt_packit/
+
+    echo "✅ rootfs 已准备完成"
 
       - name: Find rootfs
         id: find_rootfs
