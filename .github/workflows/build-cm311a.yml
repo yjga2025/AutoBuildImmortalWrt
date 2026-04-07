@@ -28,11 +28,11 @@ on:
         required: false
         type: boolean
         default: true
-      skip_imagebuilder:
-        description: "直接使用预构建 rootfs"
-        required: false
-        default: true
-        type: boolean
+skip_imagebuilder:
+  description: "直接使用预构建 rootfs"
+  required: false
+  default: true
+  type: boolean
       replace_banner:
         description: '替换为 ImmortalWrt banner'
         required: false
