@@ -63,27 +63,27 @@ jobs:
             echo 'CUSTOM_PACKAGES="$CUSTOM_PACKAGES luci-app-store"' >> shell/custom-packages.sh
           fi
 
-       - name: Download prebuilt rootfs (FIX)
-  run: |
-    LUCI_VERSION="${{ github.event.inputs.luci_version }}"
-    echo "📦 下载 rootfs: $LUCI_VERSION"
+      - name: Download prebuilt rootfs (FIX)
+        run: |
+           LUCI_VERSION="${{ github.event.inputs.luci_version }}"
+           echo "📦 下载 rootfs: $LUCI_VERSION"
 
-    mkdir -p openwrt_packit
+           mkdir -p openwrt_packit
 
-    curl -fL -o openwrt-armsr-armv8-generic-rootfs.tar.gz \
-    https://github.com/wukongdaily/AutoBuildImmortalWrt/releases/download/rootfs/immortalwrt-${LUCI_VERSION}-armsr-armv8-generic-rootfs.tar.gz
+           curl -fL -o openwrt-armsr-armv8-generic-rootfs.tar.gz \
+           https://github.com/wukongdaily/AutoBuildImmortalWrt/releases/download/rootfs/immortalwrt-${LUCI_VERSION}-armsr-armv8-generic-rootfs.tar.gz
 
-    if [ ! -f openwrt-armsr-armv8-generic-rootfs.tar.gz ]; then
-      echo "❌ rootfs 下载失败"
-      exit 1
-    fi
+           if [ ! -f openwrt-armsr-armv8-generic-rootfs.tar.gz ]; then
+           echo "❌ rootfs 下载失败"
+           exit 1
+           fi
 
-    mv openwrt-armsr-armv8-generic-rootfs.tar.gz openwrt_packit/
+           mv openwrt-armsr-armv8-generic-rootfs.tar.gz openwrt_packit/
 
-    echo "✅ rootfs 已准备完成"
+           echo "✅ rootfs 已准备完成"
 
-      - name: Find rootfs
-        id: find_rootfs
+      - name:  Find rootfs
+        id:    find_rootfs
         run: |
           ROOTFS_FILE=$(find openwrt_packit/ -type f -name "*rootfs.tar.gz" | head -n1)
           if [ ! -f "$ROOTFS_FILE" ]; then
@@ -117,7 +117,7 @@ jobs:
           LUCI_VERSION="${{ github.event.inputs.luci_version }}"
           TIMESTAMP=$(date +%Y%m%d-%H%M%S)
           NEW_NAME="immortalwrt-${LUCI_VERSION}-cm311a-btrfs-${KERNEL_VERSION}-test-${TIMESTAMP}.img.gz"
-          mv "$FILE" "${{ env.PACKAGED_OUTPUTPATH }}/$NEW_NAME"
+          mv "$FILE" "./bin/targets/armsr/armv8/$NEW_NAME"
           echo "✅ 新固件文件名: $NEW_NAME"
 
       - name: Upload firmware to GitHub Releases
